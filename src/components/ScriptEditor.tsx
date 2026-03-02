@@ -7,11 +7,11 @@ interface ScriptEditorProps {
 
 export default function ScriptEditor({ value, onChange }: ScriptEditorProps) {
   return (
-    <div className="h-full border border-lab-accent rounded overflow-hidden">
+    <div className="h-full border border-gray-200 rounded overflow-hidden">
       <Editor
         height="100%"
         language="lua"
-        theme="vs-dark"
+        theme="vs"
         value={value}
         onChange={(v) => onChange(v || '')}
         options={{

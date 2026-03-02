@@ -3,24 +3,25 @@
 @tailwind utilities;
 
 body {
-  @apply bg-lab-bg text-gray-200 m-0 p-0 overflow-hidden;
+  @apply bg-gray-100 text-gray-800 m-0 p-0 overflow-hidden;
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 14px;
 }
 
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #16213e;
+  background: #f1f1f1;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #0f3460;
-  border-radius: 4px;
+  background: #c1c1c1;
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #4ecca3;
+  background: #a0a0a0;
 }

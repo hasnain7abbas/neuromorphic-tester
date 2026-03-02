@@ -13,18 +13,18 @@ const tabs: { id: PlotType; label: string }[] = [
   { id: 'logiv', label: 'Log I-V' },
 ];
 
-const darkLayout: Partial<Plotly.Layout> = {
-  paper_bgcolor: '#0a0a1a',
-  plot_bgcolor: '#0a0a1a',
-  font: { color: '#eee', size: 11 },
-  margin: { t: 40, r: 20, b: 50, l: 70 },
+const baseLayout: Partial<Plotly.Layout> = {
+  paper_bgcolor: '#ffffff',
+  plot_bgcolor: '#fafafa',
+  font: { color: '#333', size: 11 },
+  margin: { t: 36, r: 16, b: 48, l: 64 },
   xaxis: {
-    gridcolor: '#1e2a4a',
-    zerolinecolor: '#2a3a5a',
+    gridcolor: '#e5e5e5',
+    zerolinecolor: '#ccc',
   },
   yaxis: {
-    gridcolor: '#1e2a4a',
-    zerolinecolor: '#2a3a5a',
+    gridcolor: '#e5e5e5',
+    zerolinecolor: '#ccc',
     exponentformat: 'e',
   },
   hovermode: 'closest',
@@ -52,8 +52,8 @@ export default function GraphPanel({ data }: GraphPanelProps) {
             y: data.currents,
             type: 'scattergl',
             mode: 'lines+markers',
-            marker: { color: '#4ecca3', size: 3 },
-            line: { color: '#4ecca3', width: 1.5 },
+            marker: { color: '#2563eb', size: 3 },
+            line: { color: '#2563eb', width: 1.5 },
             name: 'I-V',
           },
         ];
@@ -64,7 +64,7 @@ export default function GraphPanel({ data }: GraphPanelProps) {
             y: data.currents,
             type: 'scattergl',
             mode: 'lines',
-            line: { color: '#e94560', width: 1.5 },
+            line: { color: '#dc2626', width: 1.5 },
             name: 'Current',
           },
         ];
@@ -75,7 +75,7 @@ export default function GraphPanel({ data }: GraphPanelProps) {
             y: data.resistance,
             type: 'scattergl',
             mode: 'markers',
-            marker: { color: '#f0a500', size: 5 },
+            marker: { color: '#d97706', size: 5 },
             name: 'Resistance',
           },
         ];
@@ -86,8 +86,8 @@ export default function GraphPanel({ data }: GraphPanelProps) {
             y: data.currents.map((c) => Math.abs(c)),
             type: 'scattergl',
             mode: 'lines+markers',
-            marker: { color: '#8b5cf6', size: 3 },
-            line: { color: '#8b5cf6', width: 1.5 },
+            marker: { color: '#7c3aed', size: 3 },
+            line: { color: '#7c3aed', width: 1.5 },
             name: '|I| vs V',
           },
         ];
@@ -97,67 +97,66 @@ export default function GraphPanel({ data }: GraphPanelProps) {
   }, [activeTab, data]);
 
   const layout = useMemo((): Partial<Plotly.Layout> => {
-    const base = { ...darkLayout };
     switch (activeTab) {
       case 'iv':
         return {
-          ...base,
-          title: { text: 'I-V Characteristic', font: { size: 14 } },
-          xaxis: { ...base.xaxis, title: { text: 'Voltage (V)' } },
-          yaxis: { ...base.yaxis, title: { text: 'Current (A)' } },
+          ...baseLayout,
+          title: { text: 'I-V Characteristic', font: { size: 13 } },
+          xaxis: { ...baseLayout.xaxis, title: { text: 'Voltage (V)' } },
+          yaxis: { ...baseLayout.yaxis, title: { text: 'Current (A)' } },
         };
       case 'it':
         return {
-          ...base,
-          title: { text: 'Current vs Measurement Index', font: { size: 14 } },
-          xaxis: { ...base.xaxis, title: { text: 'Measurement #' } },
-          yaxis: { ...base.yaxis, title: { text: 'Current (A)' } },
+          ...baseLayout,
+          title: { text: 'Current vs Measurement Index', font: { size: 13 } },
+          xaxis: { ...baseLayout.xaxis, title: { text: 'Measurement #' } },
+          yaxis: { ...baseLayout.yaxis, title: { text: 'Current (A)' } },
         };
       case 'rcycle':
         return {
-          ...base,
-          title: { text: 'Resistance vs Cycle', font: { size: 14 } },
-          xaxis: { ...base.xaxis, title: { text: 'Reading #' } },
+          ...baseLayout,
+          title: { text: 'Resistance vs Cycle', font: { size: 13 } },
+          xaxis: { ...baseLayout.xaxis, title: { text: 'Reading #' } },
           yaxis: {
-            ...base.yaxis,
+            ...baseLayout.yaxis,
             title: { text: 'Resistance (Ohm)' },
             type: 'log',
           },
         };
       case 'logiv':
         return {
-          ...base,
-          title: { text: 'Log |I| vs V', font: { size: 14 } },
-          xaxis: { ...base.xaxis, title: { text: 'Voltage (V)' } },
+          ...baseLayout,
+          title: { text: 'Log |I| vs V', font: { size: 13 } },
+          xaxis: { ...baseLayout.xaxis, title: { text: 'Voltage (V)' } },
           yaxis: {
-            ...base.yaxis,
+            ...baseLayout.yaxis,
             title: { text: '|Current| (A)' },
             type: 'log',
           },
         };
       default:
-        return base;
+        return baseLayout;
     }
   }, [activeTab]);
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex gap-1 px-1 pt-1">
+      <div className="flex gap-0.5 px-1 pt-1 bg-gray-100">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`px-3 py-1 text-xs rounded-t font-medium transition-colors ${
+            className={`px-3 py-1 text-xs font-medium rounded-t border-t border-x transition-colors ${
               activeTab === tab.id
-                ? 'bg-lab-graph-bg text-lab-success border-t border-x border-lab-accent'
-                : 'bg-lab-panel text-gray-400 hover:text-gray-200'
+                ? 'bg-white text-gray-800 border-gray-300'
+                : 'bg-gray-100 text-gray-500 border-transparent hover:text-gray-700'
             }`}
           >
             {tab.label}
           </button>
         ))}
       </div>
-      <div className="flex-1 bg-lab-graph-bg rounded-b border border-lab-accent overflow-hidden">
+      <div className="flex-1 bg-white border border-gray-200 rounded-b overflow-hidden">
         {data.currents.length > 0 ? (
           <Plot
             data={plotData}
@@ -167,8 +166,8 @@ export default function GraphPanel({ data }: GraphPanelProps) {
             style={{ width: '100%', height: '100%' }}
           />
         ) : (
-          <div className="flex items-center justify-center h-full text-gray-500 text-sm">
-            No data — run a test to see results
+          <div className="flex items-center justify-center h-full text-gray-400 text-sm">
+            No data -- run a test to see results
           </div>
         )}
       </div>

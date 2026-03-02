@@ -21,7 +21,7 @@ import {
 import './styles/globals.css';
 
 function App() {
-  const { connectionState, connect, disconnect, setIp, setPort } = useSMUConnection();
+  const { connectionState, connect, disconnect, setResource } = useSMUConnection();
   const { data, isComplete, clearData, loadData } = useDataStream();
   const {
     sessions,
@@ -34,7 +34,7 @@ function App() {
   } = useSession();
 
   const [selectedTemplate, setSelectedTemplate] = useState(
-    localStorage.getItem('last_template') || 'iv_sweep'
+    localStorage.getItem('last_template') || 'epsc'
   );
   const [paramValues, setParamValues] = useState<Record<string, number>>({});
   const [script, setScript] = useState('');
@@ -73,23 +73,17 @@ function App() {
     }
   }, []);
 
-  // Save script to localStorage when it changes
+  // Save script to localStorage
   useEffect(() => {
     localStorage.setItem('last_script', script);
     localStorage.setItem('last_template', selectedTemplate);
   }, [script, selectedTemplate]);
 
-  // When test completes, check errors and auto-save
+  // When test completes
   useEffect(() => {
     if (isComplete && isRunning) {
       setIsRunning(false);
-
-      // Check for SMU errors
-      checkErrors()
-        .then(setErrors)
-        .catch(() => {});
-
-      // Auto-save session
+      checkErrors().then(setErrors).catch(() => {});
       if (isAutoRecording) {
         const name = `${currentTemplate.label} - ${new Date().toLocaleTimeString()}`;
         saveSession(name, selectedTemplate, script, JSON.stringify(paramValues)).catch(
@@ -104,14 +98,10 @@ function App() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.key === 'Enter') {
         e.preventDefault();
-        if (connectionState.status === 'connected' && !isRunning) {
-          handleStart();
-        }
+        if (connectionState.status === 'connected' && !isRunning) handleStart();
       } else if (e.key === 'Escape') {
         e.preventDefault();
-        if (isRunning) {
-          handleAbort();
-        }
+        if (isRunning) handleAbort();
       } else if (e.ctrlKey && e.key === 's') {
         e.preventDefault();
         handleExportCsv();
@@ -135,20 +125,12 @@ function App() {
   }, [script, clearData]);
 
   const handleAbort = useCallback(async () => {
-    try {
-      await abortTest();
-    } catch {
-      // ignore
-    }
+    try { await abortTest(); } catch { /* ignore */ }
     setIsRunning(false);
   }, []);
 
   const handleClear = useCallback(async () => {
-    try {
-      await clearBuffers();
-    } catch {
-      // ignore
-    }
+    try { await clearBuffers(); } catch { /* ignore */ }
     clearData();
     setErrors([]);
   }, [clearData]);
@@ -171,11 +153,7 @@ function App() {
         if (tmpl) {
           setSelectedTemplate(tmpl.id);
           if (result.session.parameters) {
-            try {
-              setParamValues(JSON.parse(result.session.parameters));
-            } catch {
-              // ignore parse error
-            }
+            try { setParamValues(JSON.parse(result.session.parameters)); } catch { /* ignore */ }
           }
         }
       } catch (err) {
@@ -186,17 +164,13 @@ function App() {
   );
 
   const handleExportCsv = useCallback(async () => {
-    // The session is already auto-saved as CSV
-    // Reload sessions to show the latest
     await loadSessions();
   }, [loadSessions]);
 
   const handleExportXlsx = useCallback(async () => {
     try {
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const filename = `neuromorphic_${timestamp}.xlsx`;
-      // Save to user's Documents folder
-      const savePath = `C:\\Users\\Hasnain\\Documents\\${filename}`;
+      const savePath = `C:\\Users\\Hasnain\\Documents\\neuromorphic_${timestamp}.xlsx`;
       await exportSessionXlsx(savePath);
     } catch (err) {
       console.error('XLSX export failed:', err);
@@ -206,13 +180,12 @@ function App() {
   const isConnected = connectionState.status === 'connected';
 
   return (
-    <div className="flex flex-col h-screen bg-lab-bg text-gray-200 select-none">
+    <div className="flex flex-col h-screen bg-gray-100 text-gray-800">
       <ConnectionPanel
         connectionState={connectionState}
         onConnect={connect}
         onDisconnect={disconnect}
-        onIpChange={setIp}
-        onPortChange={setPort}
+        onResourceChange={setResource}
       />
 
       <ControlBar
@@ -229,14 +202,14 @@ function App() {
 
       <div className="flex-1 flex overflow-hidden">
         {/* Left Panel: Script Editor + Config */}
-        <div className="w-[420px] min-w-[320px] flex flex-col border-r border-lab-accent">
+        <div className="w-[400px] min-w-[300px] flex flex-col border-r border-gray-200 bg-white">
           {/* Template Selector */}
-          <div className="px-3 py-2 border-b border-lab-accent bg-lab-panel">
-            <label className="text-xs text-gray-400 block mb-1">Template</label>
+          <div className="px-3 py-2 border-b border-gray-200">
+            <label className="text-xs text-gray-500 block mb-1">Test Template</label>
             <select
               value={selectedTemplate}
               onChange={(e) => handleTemplateChange(e.target.value)}
-              className="w-full bg-lab-bg border border-lab-accent rounded px-2 py-1.5 text-sm text-gray-200 focus:outline-none focus:border-lab-success"
+              className="w-full bg-gray-50 border border-gray-300 rounded px-2 py-1.5 text-sm text-gray-700 focus:outline-none focus:border-blue-500"
             >
               {TEMPLATES.map((t) => (
                 <option key={t.id} value={t.id}>
@@ -248,7 +221,7 @@ function App() {
 
           {/* Config Panel */}
           {currentTemplate.paramFields.length > 0 && (
-            <div className="px-3 py-2 border-b border-lab-accent">
+            <div className="px-3 py-2 border-b border-gray-200">
               <ConfigPanel
                 params={currentTemplate.paramFields}
                 values={paramValues}
@@ -264,25 +237,20 @@ function App() {
         </div>
 
         {/* Center Panel: Graph + Table */}
-        <div className="flex-1 flex flex-col min-w-0">
-          {/* Graph/Table Toggle */}
+        <div className="flex-1 flex flex-col min-w-0 bg-gray-50">
           <div className="flex items-center gap-1 px-2 pt-2">
             <button
               onClick={() => setShowTable(false)}
-              className={`px-3 py-1 text-xs rounded font-medium transition-colors ${
-                !showTable
-                  ? 'bg-lab-accent text-gray-200'
-                  : 'text-gray-400 hover:text-gray-200'
+              className={`px-3 py-1 text-xs rounded font-medium ${
+                !showTable ? 'bg-white text-gray-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
               }`}
             >
               Graph
             </button>
             <button
               onClick={() => setShowTable(true)}
-              className={`px-3 py-1 text-xs rounded font-medium transition-colors ${
-                showTable
-                  ? 'bg-lab-accent text-gray-200'
-                  : 'text-gray-400 hover:text-gray-200'
+              className={`px-3 py-1 text-xs rounded font-medium ${
+                showTable ? 'bg-white text-gray-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
               }`}
             >
               Data Table
@@ -290,11 +258,7 @@ function App() {
           </div>
 
           <div className="flex-1 p-2 min-h-0">
-            {showTable ? (
-              <DataTable data={data} />
-            ) : (
-              <GraphPanel data={data} />
-            )}
+            {showTable ? <DataTable data={data} /> : <GraphPanel data={data} />}
           </div>
         </div>
 

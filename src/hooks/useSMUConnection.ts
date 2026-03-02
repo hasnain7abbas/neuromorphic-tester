@@ -4,8 +4,7 @@ import { connectSMU, disconnectSMU } from '../lib/tauri-commands';
 
 const initialState: ConnectionState = {
   status: 'disconnected',
-  ipAddress: localStorage.getItem('smu_ip') || '192.168.1.10',
-  port: parseInt(localStorage.getItem('smu_port') || '5025', 10),
+  resource: localStorage.getItem('smu_resource') || 'GPIB26::1::INSTR',
   instrumentId: null,
   errorMessage: null,
 };
@@ -13,19 +12,17 @@ const initialState: ConnectionState = {
 export function useSMUConnection() {
   const [connectionState, setConnectionState] = useState<ConnectionState>(initialState);
 
-  const connect = useCallback(async (ip: string, port: number) => {
+  const connect = useCallback(async (resource: string) => {
     setConnectionState((prev) => ({
       ...prev,
       status: 'connecting',
-      ipAddress: ip,
-      port,
+      resource,
       errorMessage: null,
     }));
 
     try {
-      const idn = await connectSMU(ip, port);
-      localStorage.setItem('smu_ip', ip);
-      localStorage.setItem('smu_port', port.toString());
+      const idn = await connectSMU(resource);
+      localStorage.setItem('smu_resource', resource);
       setConnectionState((prev) => ({
         ...prev,
         status: 'connected',
@@ -59,13 +56,9 @@ export function useSMUConnection() {
     }));
   }, []);
 
-  const setIp = useCallback((ip: string) => {
-    setConnectionState((prev) => ({ ...prev, ipAddress: ip }));
+  const setResource = useCallback((resource: string) => {
+    setConnectionState((prev) => ({ ...prev, resource }));
   }, []);
 
-  const setPort = useCallback((port: number) => {
-    setConnectionState((prev) => ({ ...prev, port }));
-  }, []);
-
-  return { connectionState, connect, disconnect, setIp, setPort };
+  return { connectionState, connect, disconnect, setResource };
 }

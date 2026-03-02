@@ -3,89 +3,71 @@ import type { ConnectionState } from '../lib/types';
 
 interface ConnectionPanelProps {
   connectionState: ConnectionState;
-  onConnect: (ip: string, port: number) => Promise<string>;
+  onConnect: (resource: string) => Promise<string>;
   onDisconnect: () => Promise<void>;
-  onIpChange: (ip: string) => void;
-  onPortChange: (port: number) => void;
+  onResourceChange: (resource: string) => void;
 }
 
 export default function ConnectionPanel({
   connectionState,
   onConnect,
   onDisconnect,
-  onIpChange,
-  onPortChange,
+  onResourceChange,
 }: ConnectionPanelProps) {
   const [connecting, setConnecting] = useState(false);
-  const { status, ipAddress, port, instrumentId, errorMessage } = connectionState;
+  const { status, resource, instrumentId, errorMessage } = connectionState;
   const isConnected = status === 'connected';
 
   const handleConnect = async () => {
     setConnecting(true);
     try {
-      await onConnect(ipAddress, port);
+      await onConnect(resource);
     } catch {
-      // error is handled by the hook
+      // error handled by hook
     }
     setConnecting(false);
   };
 
   const statusColor =
     status === 'connected'
-      ? 'bg-lab-success'
+      ? 'bg-green-600'
       : status === 'error'
-        ? 'bg-lab-danger'
+        ? 'bg-red-500'
         : status === 'connecting'
           ? 'bg-yellow-500'
-          : 'bg-gray-500';
+          : 'bg-gray-400';
 
   const statusText =
     status === 'connected'
-      ? `Connected ${ipAddress}:${port}`
+      ? `Connected: ${resource}`
       : status === 'connecting'
         ? 'Connecting...'
         : status === 'error'
-          ? 'Error'
+          ? 'Connection Error'
           : 'Disconnected';
 
   return (
-    <div className="flex items-center gap-3 px-4 py-2 bg-lab-panel border-b border-lab-accent">
-      <div className="flex items-center gap-2">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="text-lab-success">
-          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-        <span className="font-bold text-sm text-gray-100">Neuromorphic Tester</span>
-      </div>
+    <div className="flex items-center gap-3 px-4 py-2 bg-white border-b border-gray-200">
+      <span className="font-semibold text-sm text-gray-800">Neuromorphic Tester</span>
 
-      <div className="h-6 w-px bg-lab-accent mx-1" />
+      <div className="h-5 w-px bg-gray-300 mx-1" />
 
       <div className="flex items-center gap-2">
-        <label className="text-xs text-gray-400">IP:</label>
+        <label className="text-xs text-gray-500">VISA Resource:</label>
         <input
           type="text"
-          value={ipAddress}
-          onChange={(e) => onIpChange(e.target.value)}
+          value={resource}
+          onChange={(e) => onResourceChange(e.target.value)}
           disabled={isConnected || connecting}
-          className="bg-lab-bg border border-lab-accent rounded px-2 py-1 text-sm w-36 text-gray-200 focus:outline-none focus:border-lab-success disabled:opacity-50"
-          placeholder="192.168.1.10"
-        />
-      </div>
-
-      <div className="flex items-center gap-2">
-        <label className="text-xs text-gray-400">Port:</label>
-        <input
-          type="number"
-          value={port}
-          onChange={(e) => onPortChange(parseInt(e.target.value, 10) || 5025)}
-          disabled={isConnected || connecting}
-          className="bg-lab-bg border border-lab-accent rounded px-2 py-1 text-sm w-20 text-gray-200 focus:outline-none focus:border-lab-success disabled:opacity-50"
+          className="bg-gray-50 border border-gray-300 rounded px-2 py-1 text-sm w-52 text-gray-800 focus:outline-none focus:border-blue-500 disabled:opacity-50"
+          placeholder="GPIB26::1::INSTR"
         />
       </div>
 
       <button
         onClick={handleConnect}
         disabled={isConnected || connecting}
-        className="px-3 py-1 text-sm rounded bg-lab-success text-lab-bg font-medium hover:bg-emerald-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        className="px-3 py-1 text-sm rounded bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
       >
         {connecting ? 'Connecting...' : 'Connect'}
       </button>
@@ -93,24 +75,24 @@ export default function ConnectionPanel({
       <button
         onClick={onDisconnect}
         disabled={!isConnected}
-        className="px-3 py-1 text-sm rounded bg-lab-danger text-white font-medium hover:bg-red-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        className="px-3 py-1 text-sm rounded bg-gray-200 text-gray-700 font-medium hover:bg-gray-300 disabled:opacity-40 disabled:cursor-not-allowed"
       >
         Disconnect
       </button>
 
       <div className="ml-auto flex items-center gap-2">
-        <div className={`w-2.5 h-2.5 rounded-full ${statusColor}`} />
-        <span className="text-xs text-gray-400">{statusText}</span>
+        <div className={`w-2 h-2 rounded-full ${statusColor}`} />
+        <span className="text-xs text-gray-500">{statusText}</span>
       </div>
 
       {instrumentId && (
-        <span className="text-xs text-gray-500 max-w-xs truncate" title={instrumentId}>
+        <span className="text-xs text-gray-400 max-w-xs truncate" title={instrumentId}>
           {instrumentId}
         </span>
       )}
 
       {errorMessage && (
-        <span className="text-xs text-lab-danger max-w-xs truncate" title={errorMessage}>
+        <span className="text-xs text-red-600 max-w-xs truncate" title={errorMessage}>
           {errorMessage}
         </span>
       )}

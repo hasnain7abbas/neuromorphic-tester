@@ -1,7 +1,6 @@
 export interface ConnectionState {
   status: 'disconnected' | 'connecting' | 'connected' | 'error';
-  ipAddress: string;
-  port: number;
+  resource: string;
   instrumentId: string | null;
   errorMessage: string | null;
 }

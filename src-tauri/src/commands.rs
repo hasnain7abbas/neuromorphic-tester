@@ -8,8 +8,8 @@ use crate::recording::session::SessionInfo;
 use std::path::PathBuf;
 
 #[tauri::command]
-pub async fn connect_smu(ip: String, port: u16, state: State<'_, AppState>) -> Result<String, String> {
-    let conn = SMUConnection::connect(&ip, port).await?;
+pub async fn connect_smu(resource: String, state: State<'_, AppState>) -> Result<String, String> {
+    let conn = SMUConnection::connect(&resource).await?;
     let idn = conn.send_query("*IDN?").await?;
     *state.connection.lock().await = Some(conn);
     Ok(idn)

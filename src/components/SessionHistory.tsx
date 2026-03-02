@@ -14,25 +14,12 @@ function formatDate(timestamp: string): string {
     return d.toLocaleDateString('en-GB', {
       day: '2-digit',
       month: 'short',
-      year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
     });
   } catch {
     return timestamp;
   }
-}
-
-function testTypeLabel(t: string): string {
-  const labels: Record<string, string> = {
-    iv_sweep: 'I-V Sweep',
-    pulse_sequence: 'Pulse Seq',
-    forming: 'Forming',
-    endurance: 'Endurance',
-    retention: 'Retention',
-    custom: 'Custom',
-  };
-  return labels[t] || t;
 }
 
 export default function SessionHistory({
@@ -44,18 +31,18 @@ export default function SessionHistory({
 }: SessionHistoryProps) {
   return (
     <div
-      className={`flex flex-col bg-lab-panel border-l border-lab-accent transition-all duration-200 ${
-        isOpen ? 'w-64' : 'w-8'
+      className={`flex flex-col bg-white border-l border-gray-200 transition-all duration-200 ${
+        isOpen ? 'w-56' : 'w-7'
       }`}
     >
       <button
         onClick={onToggle}
-        className="p-1.5 text-gray-400 hover:text-gray-200 self-center"
+        className="p-1 text-gray-400 hover:text-gray-600 self-center"
         title={isOpen ? 'Hide history' : 'Show history'}
       >
         <svg
-          width="16"
-          height="16"
+          width="14"
+          height="14"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -68,23 +55,23 @@ export default function SessionHistory({
 
       {isOpen && (
         <>
-          <div className="px-3 py-1.5 border-b border-lab-accent">
-            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-              Session History
+          <div className="px-3 py-1.5 border-b border-gray-200">
+            <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+              History
             </h3>
           </div>
           <div className="flex-1 overflow-auto">
             {sessions.length === 0 ? (
-              <p className="text-xs text-gray-500 p-3">No sessions yet</p>
+              <p className="text-xs text-gray-400 p-3">No sessions yet</p>
             ) : (
               sessions.map((session) => (
                 <div
                   key={session.id}
-                  className="p-2 border-b border-lab-accent/30 hover:bg-lab-accent/30 cursor-pointer group"
+                  className="p-2 border-b border-gray-100 hover:bg-blue-50 cursor-pointer group"
                   onClick={() => onLoadSession(session.id)}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-gray-200 truncate">
+                    <span className="text-xs font-medium text-gray-700 truncate">
                       {session.name}
                     </span>
                     <button
@@ -92,23 +79,18 @@ export default function SessionHistory({
                         e.stopPropagation();
                         onDeleteSession(session.id);
                       }}
-                      className="text-gray-500 hover:text-lab-danger opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Delete session"
+                      className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100"
+                      title="Delete"
                     >
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <line x1="18" y1="6" x2="6" y2="18" />
                         <line x1="6" y1="6" x2="18" y2="18" />
                       </svg>
                     </button>
                   </div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-lab-accent text-gray-300">
-                      {testTypeLabel(session.test_type)}
-                    </span>
-                    <span className="text-[10px] text-gray-500">
-                      {formatDate(session.timestamp)}
-                    </span>
-                  </div>
+                  <span className="text-[10px] text-gray-400">
+                    {formatDate(session.timestamp)}
+                  </span>
                 </div>
               ))
             )}

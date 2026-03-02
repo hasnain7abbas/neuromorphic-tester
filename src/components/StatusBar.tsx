@@ -39,13 +39,6 @@ export default function StatusBar({
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  const statusColor =
-    connectionStatus === 'connected'
-      ? 'text-lab-success'
-      : connectionStatus === 'error'
-        ? 'text-lab-danger'
-        : 'text-gray-500';
-
   const statusLabel =
     isRunning
       ? 'Running...'
@@ -56,50 +49,36 @@ export default function StatusBar({
           : 'Disconnected';
 
   return (
-    <div className="flex items-center gap-4 px-4 py-1.5 bg-lab-panel border-t border-lab-accent text-xs">
+    <div className="flex items-center gap-4 px-4 py-1 bg-white border-t border-gray-200 text-xs text-gray-500">
       <div className="flex items-center gap-1.5">
         <div
-          className={`w-2 h-2 rounded-full ${
+          className={`w-1.5 h-1.5 rounded-full ${
             isRunning
-              ? 'bg-yellow-400 animate-pulse'
+              ? 'bg-yellow-500 animate-pulse'
               : connectionStatus === 'connected'
-                ? 'bg-lab-success'
-                : 'bg-gray-500'
+                ? 'bg-green-500'
+                : 'bg-gray-400'
           }`}
         />
-        <span className={statusColor}>{statusLabel}</span>
+        <span>{statusLabel}</span>
       </div>
 
-      <div className="h-3 w-px bg-lab-accent" />
+      <span>Readings: <span className="text-gray-700 font-mono">{readingCount}</span></span>
 
-      <span className="text-gray-400">
-        Readings: <span className="text-gray-200 font-mono">{readingCount}</span>
-      </span>
-
-      <div className="h-3 w-px bg-lab-accent" />
-
-      <span className="text-gray-400">
+      <span>
         Errors:{' '}
-        <span
-          className={`font-mono ${errors.length > 0 ? 'text-lab-danger' : 'text-gray-200'}`}
-        >
+        <span className={errors.length > 0 ? 'text-red-600' : 'text-gray-700'}>
           {errors.length}
         </span>
       </span>
 
       {errors.length > 0 && (
-        <span className="text-lab-danger truncate max-w-xs" title={errors[0]}>
+        <span className="text-red-500 truncate max-w-xs" title={errors[0]}>
           {errors[0]}
         </span>
       )}
 
-      <div className="ml-auto flex items-center gap-1.5">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-500">
-          <circle cx="12" cy="12" r="10" />
-          <polyline points="12,6 12,12 16,14" />
-        </svg>
-        <span className="text-gray-400 font-mono">{formatTime(elapsed)}</span>
-      </div>
+      <span className="ml-auto font-mono">{formatTime(elapsed)}</span>
     </div>
   );
 }

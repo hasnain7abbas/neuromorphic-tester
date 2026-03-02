@@ -1,8 +1,8 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { SessionInfo } from './types';
 
-export async function connectSMU(ip: string, port: number): Promise<string> {
-  return invoke<string>('connect_smu', { ip, port });
+export async function connectSMU(resource: string): Promise<string> {
+  return invoke<string>('connect_smu', { resource });
 }
 
 export async function disconnectSMU(): Promise<void> {
