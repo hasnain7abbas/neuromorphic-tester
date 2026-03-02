@@ -1,64 +1,91 @@
 use std::ffi::CString;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use libloading::{Library, Symbol};
 
 // NI-VISA type aliases
 type ViStatus = i32;
 type ViSession = u32;
-type ViRsrc = *const i8;
 type ViAccessMode = u32;
-type ViBuf = *const u8;
-type ViBufMut = *mut u8;
 type ViUInt32 = u32;
-type ViPUInt32 = *mut u32;
 
 const VI_SUCCESS: ViStatus = 0;
 const VI_NULL: ViAccessMode = 0;
-const VI_TMO_INFINITE: ViUInt32 = 0xFFFFFFFF;
-
-#[link(name = "visa64", kind = "raw-dylib")]
-extern "C" {
-    fn viOpenDefaultRM(sesn: *mut ViSession) -> ViStatus;
-    fn viOpen(
-        sesn: ViSession,
-        rsrc: ViRsrc,
-        access_mode: ViAccessMode,
-        timeout: ViUInt32,
-        vi: *mut ViSession,
-    ) -> ViStatus;
-    fn viClose(vi: ViSession) -> ViStatus;
-    fn viWrite(
-        vi: ViSession,
-        buf: ViBuf,
-        count: ViUInt32,
-        ret_count: ViPUInt32,
-    ) -> ViStatus;
-    fn viRead(
-        vi: ViSession,
-        buf: ViBufMut,
-        count: ViUInt32,
-        ret_count: ViPUInt32,
-    ) -> ViStatus;
-    fn viSetAttribute(vi: ViSession, attr: ViUInt32, value: u64) -> ViStatus;
-}
 
 // VISA attribute IDs
 const VI_ATTR_TMO_VALUE: ViUInt32 = 0x3FFF001A;
 
+// Function pointer types matching VISA C API
+type FnViOpenDefaultRM = unsafe extern "C" fn(*mut ViSession) -> ViStatus;
+type FnViOpen = unsafe extern "C" fn(ViSession, *const i8, ViAccessMode, ViUInt32, *mut ViSession) -> ViStatus;
+type FnViClose = unsafe extern "C" fn(ViSession) -> ViStatus;
+type FnViWrite = unsafe extern "C" fn(ViSession, *const u8, ViUInt32, *mut u32) -> ViStatus;
+type FnViRead = unsafe extern "C" fn(ViSession, *mut u8, ViUInt32, *mut u32) -> ViStatus;
+type FnViSetAttribute = unsafe extern "C" fn(ViSession, ViUInt32, u64) -> ViStatus;
+
+/// Holds the dynamically loaded VISA library and resolved function pointers.
+struct VisaLib {
+    _lib: Library, // must stay alive so function pointers remain valid
+    vi_open_default_rm: FnViOpenDefaultRM,
+    vi_open: FnViOpen,
+    vi_close: FnViClose,
+    vi_write: FnViWrite,
+    vi_read: FnViRead,
+    vi_set_attribute: FnViSetAttribute,
+}
+
+// SAFETY: The VISA library and function pointers are thread-safe when protected by our Mutex
+unsafe impl Send for VisaLib {}
+unsafe impl Sync for VisaLib {}
+
+impl VisaLib {
+    fn load() -> Result<Self, String> {
+        let lib = unsafe { Library::new("visa64.dll") }.map_err(|_| {
+            "NI-VISA not found. Please install the NI-VISA runtime from:\nhttps://www.ni.com/en/support/downloads/drivers/download.ni-visa.html".to_string()
+        })?;
+
+        unsafe {
+            let vi_open_default_rm: Symbol<FnViOpenDefaultRM> = lib.get(b"viOpenDefaultRM")
+                .map_err(|e| format!("Failed to load viOpenDefaultRM: {}", e))?;
+            let vi_open: Symbol<FnViOpen> = lib.get(b"viOpen")
+                .map_err(|e| format!("Failed to load viOpen: {}", e))?;
+            let vi_close: Symbol<FnViClose> = lib.get(b"viClose")
+                .map_err(|e| format!("Failed to load viClose: {}", e))?;
+            let vi_write: Symbol<FnViWrite> = lib.get(b"viWrite")
+                .map_err(|e| format!("Failed to load viWrite: {}", e))?;
+            let vi_read: Symbol<FnViRead> = lib.get(b"viRead")
+                .map_err(|e| format!("Failed to load viRead: {}", e))?;
+            let vi_set_attribute: Symbol<FnViSetAttribute> = lib.get(b"viSetAttribute")
+                .map_err(|e| format!("Failed to load viSetAttribute: {}", e))?;
+
+            Ok(Self {
+                vi_open_default_rm: *vi_open_default_rm,
+                vi_open: *vi_open,
+                vi_close: *vi_close,
+                vi_write: *vi_write,
+                vi_read: *vi_read,
+                vi_set_attribute: *vi_set_attribute,
+                _lib: lib,
+            })
+        }
+    }
+}
+
 struct VisaHandle {
+    lib: VisaLib,
     rm: ViSession,
     instr: ViSession,
 }
 
-// SAFETY: The VISA handles are protected by our Mutex
+// SAFETY: Protected by our Mutex
 unsafe impl Send for VisaHandle {}
 unsafe impl Sync for VisaHandle {}
 
 impl Drop for VisaHandle {
     fn drop(&mut self) {
         unsafe {
-            viClose(self.instr);
-            viClose(self.rm);
+            (self.lib.vi_close)(self.instr);
+            (self.lib.vi_close)(self.rm);
         }
     }
 }
@@ -72,25 +99,32 @@ impl SMUConnection {
     pub async fn connect(resource: &str) -> Result<Self, String> {
         let resource_cstr = CString::new(resource)
             .map_err(|_| "Invalid resource string".to_string())?;
+        let resource_owned = resource.to_string();
 
-        let (rm, instr) = tokio::task::spawn_blocking(move || -> Result<(ViSession, ViSession), String> {
+        let handle = tokio::task::spawn_blocking(move || -> Result<VisaHandle, String> {
+            // Load VISA library dynamically
+            let lib = VisaLib::load()?;
+
             unsafe {
                 let mut rm: ViSession = 0;
-                let status = viOpenDefaultRM(&mut rm);
+                let status = (lib.vi_open_default_rm)(&mut rm);
                 if status < VI_SUCCESS {
-                    return Err(format!("Failed to open VISA Resource Manager (error {}). Is NI-VISA installed?", status));
+                    return Err(format!(
+                        "Failed to open VISA Resource Manager (error {}). Is NI-VISA installed?",
+                        status
+                    ));
                 }
 
                 let mut instr: ViSession = 0;
-                let status = viOpen(
+                let status = (lib.vi_open)(
                     rm,
                     resource_cstr.as_ptr(),
                     VI_NULL,
-                    5000, // 5 second timeout for open
+                    5000,
                     &mut instr,
                 );
                 if status < VI_SUCCESS {
-                    viClose(rm);
+                    (lib.vi_close)(rm);
                     return Err(format!(
                         "Failed to open instrument '{}' (error {}). Check GPIB address and connections.",
                         resource_cstr.to_str().unwrap_or("?"),
@@ -99,17 +133,17 @@ impl SMUConnection {
                 }
 
                 // Set timeout to 30 seconds for read/write operations
-                viSetAttribute(instr, VI_ATTR_TMO_VALUE, 30000);
+                (lib.vi_set_attribute)(instr, VI_ATTR_TMO_VALUE, 30000);
 
-                Ok((rm, instr))
+                Ok(VisaHandle { lib, rm, instr })
             }
         })
         .await
         .map_err(|e| format!("Spawn error: {}", e))??;
 
         Ok(Self {
-            handle: Arc::new(Mutex::new(VisaHandle { rm, instr })),
-            resource_string: resource.to_string(),
+            handle: Arc::new(Mutex::new(handle)),
+            resource_string: resource_owned,
         })
     }
 
@@ -122,7 +156,7 @@ impl SMUConnection {
             let buf = cmd_with_newline.as_bytes();
             let mut ret_count: u32 = 0;
             unsafe {
-                let status = viWrite(h.instr, buf.as_ptr(), buf.len() as u32, &mut ret_count);
+                let status = (h.lib.vi_write)(h.instr, buf.as_ptr(), buf.len() as u32, &mut ret_count);
                 if status < VI_SUCCESS {
                     return Err(format!("VISA write failed (error {})", status));
                 }
@@ -144,7 +178,7 @@ impl SMUConnection {
             let buf = cmd_with_newline.as_bytes();
             let mut ret_count: u32 = 0;
             unsafe {
-                let status = viWrite(h.instr, buf.as_ptr(), buf.len() as u32, &mut ret_count);
+                let status = (h.lib.vi_write)(h.instr, buf.as_ptr(), buf.len() as u32, &mut ret_count);
                 if status < VI_SUCCESS {
                     return Err(format!("VISA write failed (error {})", status));
                 }
@@ -157,7 +191,7 @@ impl SMUConnection {
             let mut read_buf = vec![0u8; 65536];
             let mut read_count: u32 = 0;
             unsafe {
-                let status = viRead(
+                let status = (h.lib.vi_read)(
                     h.instr,
                     read_buf.as_mut_ptr(),
                     read_buf.len() as u32,

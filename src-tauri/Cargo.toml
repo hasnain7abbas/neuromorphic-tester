@@ -28,4 +28,5 @@ rust_xlsxwriter = "0.79"
 rusqlite = { version = "0.32", features = ["bundled"] }
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1", features = ["v4"] }
+libloading = "0.8"
 
