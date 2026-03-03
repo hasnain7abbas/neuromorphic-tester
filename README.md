@@ -2,13 +2,15 @@
 
 Desktop control software for the **Keithley 2602 SMU** — designed for neuromorphic memristor research. Built with Tauri 2.0, React, and Rust.
 
-Connects to the SMU via **GPIB (NI-VISA)**, sends TSP/Lua scripts, streams measurement data in real time, and provides interactive plotting and data export.
+Connects to the SMU via **GPIB, TCP/IP, or USB** through NI-VISA, sends TSP/Lua scripts, streams measurement data in real time, and provides interactive plotting and data export.
 
 ---
 
 ## Features
 
-- **GPIB Connection** — Communicates with Keithley 2602 via NI-VISA (`visa64.dll`), configurable VISA resource string
+- **Multi-Interface Connection** — GPIB, TCP/IP (LAN), USB, or manual VISA resource string entry
+- **TSP Link Support** — Control linked Keithley instruments via configurable node addressing
+- **Dynamic VISA Loading** — App launches without NI-VISA installed; driver only required when connecting
 - **30+ Test Templates** — Pre-built synaptic plasticity tests with adjustable parameters:
   - EPSC, PPF, PPD, SDDP, SRDP, STDP, SNDP
   - LTP/LTD, Learning/Forgetting, STP-to-LTP Transition
@@ -22,7 +24,24 @@ Connects to the SMU via **GPIB (NI-VISA)**, sends TSP/Lua scripts, streams measu
 - **Data Table** — Scrollable table with voltage, current, and resistance readings
 - **Session History** — SQLite-backed session recording with auto-save on test completion
 - **Export** — CSV and XLSX export of measurement data
-- **Safety** — Sends `smua.source.output = smua.OUTPUT_OFF` on window close
+- **Safety** — Sends `smua.source.output = smua.OUTPUT_OFF` on disconnect and window close
+
+---
+
+## Connection Options
+
+The connection panel supports multiple interfaces with auto-generated VISA resource strings:
+
+| Interface | Fields | Example Resource String |
+|-----------|--------|------------------------|
+| **GPIB** | Board # (0-31), Address (0-30) | `GPIB0::26::INSTR` |
+| **TCP/IP** | IP Address, Port | `TCPIP0::192.168.1.100::5025::SOCKET` |
+| **USB** | Vendor ID, Product ID, Serial # | `USB0::0x05E6::0x2602::serial::INSTR` |
+| **Manual** | Raw VISA resource string | Any valid VISA resource |
+
+**TSP Link:** Enable the TSP Link checkbox and set the node number (1-64) to address linked instruments using `node[N].smua` notation.
+
+All settings are persisted to localStorage automatically.
 
 ---
 
@@ -36,7 +55,7 @@ Connects to the SMU via **GPIB (NI-VISA)**, sends TSP/Lua scripts, streams measu
 | Charts | Plotly.js + react-plotly.js |
 | Script Editor | Monaco Editor (@monaco-editor/react) |
 | Backend | Rust, Tokio (async runtime) |
-| SMU Communication | NI-VISA FFI (`visa64.dll` via raw-dylib) |
+| SMU Communication | NI-VISA (`visa64.dll` via `libloading` — runtime dynamic loading) |
 | Database | SQLite (rusqlite, bundled) |
 | Export | csv, rust_xlsxwriter |
 | CI/CD | GitHub Actions (auto version bump + release) |
@@ -45,9 +64,9 @@ Connects to the SMU via **GPIB (NI-VISA)**, sends TSP/Lua scripts, streams measu
 
 ## Prerequisites
 
-- **Windows 10/11** (NI-VISA driver required for GPIB)
-- **NI-VISA** runtime installed ([download from NI](https://www.ni.com/en/support/downloads/drivers/download.ni-visa.html))
-- **GPIB interface** (e.g., NI GPIB-USB-HS) connected to Keithley 2602
+- **Windows 10/11**
+- **NI-VISA** runtime installed ([download from NI](https://www.ni.com/en/support/downloads/drivers/download.ni-visa.html)) — only required when connecting to an instrument, not for launching the app
+- **GPIB interface** (e.g., NI GPIB-USB-HS), **LAN**, or **USB** connection to Keithley 2602
 
 ### For Development
 
@@ -86,7 +105,7 @@ neuromorphic-tester/
 ├── src/                            # React frontend
 │   ├── components/
 │   │   ├── ConfigPanel.tsx             # Test parameter inputs
-│   │   ├── ConnectionPanel.tsx         # VISA resource + connect/disconnect
+│   │   ├── ConnectionPanel.tsx         # Multi-interface connection UI
 │   │   ├── ControlBar.tsx              # Start / Abort / Clear / Export
 │   │   ├── DataTable.tsx               # Measurement data table
 │   │   ├── GraphPanel.tsx              # Plotly charts (I-V, I-t, R-Cycle, Log I-V)
@@ -95,19 +114,19 @@ neuromorphic-tester/
 │   │   └── StatusBar.tsx               # Status, reading count, errors
 │   ├── hooks/
 │   │   ├── useDataStream.ts            # Real-time data event listener
-│   │   ├── useSMUConnection.ts         # GPIB connection state
+│   │   ├── useSMUConnection.ts         # Connection config + state management
 │   │   └── useSession.ts              # Session CRUD + auto-recording
 │   ├── lib/
 │   │   ├── templates.ts               # 30+ TSP test script templates
 │   │   ├── tauri-commands.ts          # Typed Tauri IPC wrappers
-│   │   └── types.ts                   # TypeScript interfaces
+│   │   └── types.ts                   # TypeScript interfaces + connection config
 │   ├── App.tsx
 │   └── main.tsx
 │
 ├── src-tauri/                      # Rust backend
 │   ├── src/
 │   │   ├── smu/
-│   │   │   ├── connection.rs           # NI-VISA GPIB FFI (visa64.dll)
+│   │   │   ├── connection.rs           # NI-VISA dynamic loading (libloading)
 │   │   │   ├── commands.rs             # TSP command helpers
 │   │   │   └── parser.rs              # SMU response parser
 │   │   ├── recording/
