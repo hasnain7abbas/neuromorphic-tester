@@ -167,6 +167,29 @@ impl SMUConnection {
         .map_err(|e| format!("Spawn error: {}", e))?
     }
 
+    /// Send an entire multi-line TSP script as a single VISA write,
+    /// wrapped in loadscript/endscript so the instrument buffers it
+    /// before executing (matches how Keithley TSB sends scripts).
+    pub async fn send_script(&self, script: &str) -> Result<(), String> {
+        let handle = self.handle.clone();
+        let block = format!("loadscript\n{}\nendscript\n", script);
+
+        tokio::task::spawn_blocking(move || -> Result<(), String> {
+            let h = handle.blocking_lock();
+            let buf = block.as_bytes();
+            let mut ret_count: u32 = 0;
+            unsafe {
+                let status = (h.lib.vi_write)(h.instr, buf.as_ptr(), buf.len() as u32, &mut ret_count);
+                if status < VI_SUCCESS {
+                    return Err(format!("VISA write failed (error {})", status));
+                }
+            }
+            Ok(())
+        })
+        .await
+        .map_err(|e| format!("Spawn error: {}", e))?
+    }
+
     pub async fn send_query(&self, cmd: &str) -> Result<String, String> {
         let handle = self.handle.clone();
         let cmd_with_newline = format!("{}\n", cmd);
