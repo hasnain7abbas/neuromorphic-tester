@@ -21,7 +21,7 @@ import {
 import './styles/globals.css';
 
 function App() {
-  const { connectionState, connect, disconnect, setResource } = useSMUConnection();
+  const { connectionState, connect, disconnect, setConfig } = useSMUConnection();
   const { data, isComplete, clearData, loadData } = useDataStream();
   const {
     sessions,
@@ -185,7 +185,7 @@ function App() {
         connectionState={connectionState}
         onConnect={connect}
         onDisconnect={disconnect}
-        onResourceChange={setResource}
+        onConfigChange={setConfig}
       />
 
       <ControlBar
