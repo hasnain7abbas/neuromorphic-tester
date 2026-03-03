@@ -65,13 +65,16 @@ pub async fn run_script(script: String, state: State<'_, AppState>) -> Result<St
     let conn_guard = state.connection.lock().await;
     let conn = conn_guard.as_ref().ok_or("Not connected")?;
 
-    // Send each line of the script
+    // Wrap in loadscript/endscript so multi-line TSP (for loops, if, etc.) works
+    conn.send_command("loadscript").await?;
     for line in script.lines() {
         let trimmed = line.trim();
         if !trimmed.is_empty() {
             conn.send_command(trimmed).await?;
         }
     }
+    conn.send_command("endscript").await?;
+    conn.send_command("script.run()").await?;
 
     // Small delay to let the script execute
     drop(conn_guard);
@@ -95,16 +98,19 @@ pub async fn run_script_with_streaming(
         *data = TestData::default();
     }
 
-    // Send the script first
+    // Send the script wrapped in loadscript/endscript
     {
         let conn_guard = conn_arc.lock().await;
         let conn = conn_guard.as_ref().ok_or("Not connected")?;
+        conn.send_command("loadscript").await?;
         for line in script.lines() {
             let trimmed = line.trim();
             if !trimmed.is_empty() {
                 conn.send_command(trimmed).await?;
             }
         }
+        conn.send_command("endscript").await?;
+        conn.send_command("script.run()").await?;
     }
 
     // Spawn a background polling task
