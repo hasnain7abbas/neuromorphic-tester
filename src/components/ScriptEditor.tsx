@@ -1,4 +1,7 @@
-import Editor from '@monaco-editor/react';
+import Editor, { loader } from '@monaco-editor/react';
+import * as monaco from 'monaco-editor';
+
+loader.config({ monaco });
 
 interface ScriptEditorProps {
   value: string;
