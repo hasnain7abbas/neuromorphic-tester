@@ -11,6 +11,7 @@ type ViUInt32 = u32;
 
 const VI_SUCCESS: ViStatus = 0;
 const VI_NULL: ViAccessMode = 0;
+const VI_ERROR_TMO: ViStatus = -1073807339; // 0xBFFF0015
 
 // VISA attribute IDs
 const VI_ATTR_TMO_VALUE: ViUInt32 = 0x3FFF001A;
@@ -185,6 +186,53 @@ impl SMUConnection {
                 }
             }
             Ok(())
+        })
+        .await
+        .map_err(|e| format!("Spawn error: {}", e))?
+    }
+
+    /// Poll-read with a short timeout (2 seconds).
+    /// Returns Ok("") on timeout (no data yet), Ok(data) on success, Err on failure.
+    pub async fn read_response_poll(&self) -> Result<String, String> {
+        let handle = self.handle.clone();
+
+        tokio::task::spawn_blocking(move || -> Result<String, String> {
+            let h = handle.blocking_lock();
+
+            // Set short timeout for polling (2 seconds)
+            unsafe {
+                (h.lib.vi_set_attribute)(h.instr, VI_ATTR_TMO_VALUE, 2000);
+            }
+
+            let mut read_buf = vec![0u8; 262144]; // 256KB for large printbuffer outputs
+            let mut read_count: u32 = 0;
+
+            let status = unsafe {
+                (h.lib.vi_read)(
+                    h.instr,
+                    read_buf.as_mut_ptr(),
+                    read_buf.len() as u32,
+                    &mut read_count,
+                )
+            };
+
+            // Restore normal timeout
+            unsafe {
+                (h.lib.vi_set_attribute)(h.instr, VI_ATTR_TMO_VALUE, 30000);
+            }
+
+            // Timeout means script is still running, no data yet
+            if status == VI_ERROR_TMO {
+                return Ok(String::new());
+            }
+
+            // VI_SUCCESS_MAX_CNT (0x3FFF0006) is also acceptable
+            if status < VI_SUCCESS && status != 0x3FFF0006_u32 as i32 {
+                return Err(format!("VISA read failed (error {})", status));
+            }
+
+            let response = String::from_utf8_lossy(&read_buf[..read_count as usize]).to_string();
+            Ok(response)
         })
         .await
         .map_err(|e| format!("Spawn error: {}", e))?

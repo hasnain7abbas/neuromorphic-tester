@@ -91,65 +91,67 @@ pub async fn run_script_with_streaming(
         *data = TestData::default();
     }
 
-    // Send entire script as a single VISA write wrapped in loadscript/endscript
+    // Send the script via loadscript/endscript, then queue run + done marker.
+    // The done marker executes after the script finishes (TSP processes commands in order).
     {
         let conn_guard = conn_arc.lock().await;
         let conn = conn_guard.as_ref().ok_or("Not connected")?;
         conn.send_script(&script).await?;
         conn.send_command("script.anonymous.run()").await?;
+        conn.send_command("print(\"===DONE===\")").await?;
     }
 
-    // Spawn a background polling task
+    // Spawn a background task that reads output until ===DONE=== is found
     tokio::spawn(async move {
-        let mut last_count: usize = 0;
-        let mut consecutive_same = 0;
+        let mut all_output = String::new();
+        let max_attempts = 1800; // 1800 * ~2.2s = ~66 minutes max wait
 
-        loop {
-            tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+        for _ in 0..max_attempts {
+            // Short sleep to yield control between read attempts
+            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 
             let conn_guard = conn_arc.lock().await;
             let conn = match conn_guard.as_ref() {
                 Some(c) => c,
-                None => break,
-            };
-
-            // Check buffer count
-            let count = match conn.send_query("print(smua.nvbuffer1.n)").await {
-                Ok(s) => s.trim().parse::<usize>().unwrap_or(0),
-                Err(_) => {
-                    consecutive_same += 1;
-                    if consecutive_same > 20 {
-                        break;
-                    }
-                    continue;
+                None => {
+                    // Connection closed (abort/disconnect)
+                    let _ = app.emit("test-complete", ());
+                    return;
                 }
             };
 
-            if count > last_count {
-                consecutive_same = 0;
-                // Fetch new current data
-                let i_data = conn
-                    .send_query(&format!("printbuffer({}, {}, smua.nvbuffer1)", last_count + 1, count))
-                    .await;
-                // Fetch new voltage data
-                let v_data = conn
-                    .send_query(&format!("printbuffer({}, {}, smua.nvbuffer2)", last_count + 1, count))
-                    .await;
+            match conn.read_response_poll().await {
+                Ok(chunk) if !chunk.is_empty() => {
+                    all_output.push_str(&chunk);
+                }
+                Err(_) => {
+                    // Read error — likely abort or disconnect
+                    let _ = app.emit("test-complete", ());
+                    return;
+                }
+                _ => {} // timeout, script still running
+            }
 
-                if let (Ok(i_str), Ok(v_str)) = (i_data, v_data) {
-                    if let (Ok(currents), Ok(voltages)) = (
-                        parser::parse_buffer_response(&i_str),
-                        parser::parse_buffer_response(&v_str),
-                    ) {
+            drop(conn_guard);
+
+            // Check if script has finished
+            if all_output.contains("===DONE===") {
+                let clean = all_output.replace("===DONE===", "");
+                let clean = clean.trim();
+
+                if !clean.is_empty() {
+                    // Try to parse as dual buffer (current + voltage separated by ---SEPARATOR---)
+                    if let Ok((currents, voltages)) = parser::parse_dual_buffer_response(clean) {
                         let timestamp = chrono::Utc::now().to_rfc3339();
-                        let timestamps: Vec<String> = currents.iter().map(|_| timestamp.clone()).collect();
+                        let timestamps: Vec<String> =
+                            currents.iter().map(|_| timestamp.clone()).collect();
 
                         // Store in app state
                         {
                             let mut data = data_arc.lock().await;
-                            data.currents.extend_from_slice(&currents);
-                            data.voltages.extend_from_slice(&voltages);
-                            data.timestamps.extend_from_slice(&timestamps);
+                            data.currents = currents.clone();
+                            data.voltages = voltages.clone();
+                            data.timestamps = timestamps.clone();
                         }
 
                         let payload = serde_json::json!({
@@ -158,21 +160,35 @@ pub async fn run_script_with_streaming(
                             "timestamps": timestamps,
                         });
                         let _ = app.emit("data-update", &payload);
+                    } else {
+                        // Fallback: try as single buffer (just current values)
+                        if let Ok(values) = parser::parse_buffer_response(clean) {
+                            let timestamp = chrono::Utc::now().to_rfc3339();
+                            let timestamps: Vec<String> =
+                                values.iter().map(|_| timestamp.clone()).collect();
+
+                            {
+                                let mut data = data_arc.lock().await;
+                                data.currents = values.clone();
+                                data.timestamps = timestamps.clone();
+                            }
+
+                            let payload = serde_json::json!({
+                                "currents": values,
+                                "voltages": [],
+                                "timestamps": timestamps,
+                            });
+                            let _ = app.emit("data-update", &payload);
+                        }
                     }
                 }
 
-                last_count = count;
-            } else {
-                consecutive_same += 1;
-                // If no new data for ~6 seconds, script likely finished
-                if consecutive_same > 20 {
-                    break;
-                }
+                let _ = app.emit("test-complete", ());
+                return;
             }
-
-            drop(conn_guard);
         }
 
+        // Timed out waiting for script
         let _ = app.emit("test-complete", ());
     });
 
