@@ -215,6 +215,26 @@ Version is synced across `tauri.conf.json`, `package.json`, and `Cargo.toml` aut
 
 ---
 
+## Changelog
+
+### v0.1.6 — Bug Fixes (Script Execution & Data Display)
+
+**Problems Fixed:**
+
+1. **Measured values were not displaying on screen**
+   - **Root cause:** The old approach tried to poll the SMU (`print(smua.nvbuffer1.n)`) while a script was still running via `script.anonymous.run()`. On the Keithley 2602, the TSP engine is busy during script execution and cannot process additional queries — so the polling always timed out and no data was ever received.
+   - **Fix:** Replaced the broken polling mechanism with a done-marker approach. After queuing `script.anonymous.run()`, a `print("===DONE===")` command is queued next. The TSP engine executes the done-marker only after the script finishes. A background task reads VISA output with short-timeout polls until `===DONE===` appears, then parses all the `printbuffer` data at once and displays it.
+
+2. **SMU error "error in line 2" — code not running at all**
+   - **Root cause:** The Bipolar I-V Sweep template contained `smua.measure.sense = smua.SENSE_LOCAL`, which is not a valid command on the Keithley 2602. The correct command is `smua.sense = smua.SENSE_LOCAL` (without `.measure`).
+   - **Fix:** Corrected the command to `smua.sense = smua.SENSE_LOCAL`.
+
+3. **Parser crashes on DS345 templates with intermediate print messages**
+   - **Root cause:** DS345 templates output messages like `">>> Press DS345 trigger button NOW <<<"` before the `printbuffer` data. The parser tried to interpret these as numbers and failed.
+   - **Fix:** Made the parser robust — it now filters out non-numeric lines and text tokens before parsing the CSV measurement data.
+
+---
+
 ## License
 
 This project is for academic research purposes.
